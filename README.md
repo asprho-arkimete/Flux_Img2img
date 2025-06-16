@@ -36,3 +36,5 @@ modelli e Lora su civitai a piecere vostro modelli compatibili con sd 1.5
 e Lora compatibili con sd 1.5 e flux D1,S1 a vostra preferenza
 
 modelli per pytorch-hair-segmentation da scaricare in https://github.com/YBIGTA/pytorch-hair-segmentation, e mettere nella cartella : pytorch-hair-segmentation\models
+
+SCUSATEMI MA ALCUNE DIRECTORY LE HO ZIPPATE PER CARICARLE INSIEME , DISIZIPPATE IL FILE E ESTRAETE TUTTO NELLA CARTELLA CORRENTE 
