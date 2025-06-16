@@ -1,0 +1,40 @@
+Divertiti con Img2Img, FLUX e IP-Adapter per creare immagini straordinarie!
+
+Questo repository ti permette di generare e modificare immagini con grande libertà e creatività grazie all’integrazione di:
+
+Stable Diffusion 1.5
+
+FLUX Img2Img
+
+FLUX Fill per il completamento e la ricostruzione di parti mancanti
+
+IP-Adapter per personalizzare lo stile delle immagini usando riferimenti visivi
+
+Interpolazione dei frame per creare video fluidi a partire da immagini generate
+
+⚙️ Funzionalità principali:
+
+Generazione di immagini partendo da uno sketch o da una foto
+
+Modifica dei vestiti e dei dettagli attraverso Img2Img
+
+Personalizzazione avanzata tramite immagini di riferimento con IP-Adapter
+
+Riempimento intelligente delle aree mancanti con FLUX Fill
+
+Possibilità di interpolare i frame per trasformare le immagini in animazioni
+
+📦 Il repository include tutto il necessario per usare sia Stable Diffusion 1.5 che FLUX con IP-Adapter, pronto per creare immagini e video personalizzati.
+
+download model "frame-interpolation-pytorch": https://github.com/pedrovfigueiredo/frameintIFE, copy dir models e pretrained_models
+pretrained_models: download automatico in "C:\hf_download\hub", se desideri cambiare dir: in demo_gradio : os.environ['HF_HOME'] = r'C:\hf_download'
+
+modelli e Lora su civitai a piecere vostro modelli compatibili con sd 1.5 
+e Lora compatibili con sd 1.5 e flux D1,S1 a vostra preferenza
+
+modelli per pytorch-hair-segmentation da scaricare in https://github.com/YBIGTA/pytorch-hair-segmentation, e mettere nella cartella : pytorch-hair-segmentation\models
+
+
+
+
+
