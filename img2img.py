@@ -132,11 +132,13 @@ tk.Label(frame_prompt, text="Prompt Positivo").grid(row=0, column=0, sticky='w')
 
 negative = tk.Text(frame_prompt, width=50, height=10)
 negative.grid(row=1, column=1, padx=5, pady=5)
-negative.insert("1.0", (
-    "worst quality, low quality:1.4, illustration, 3d, 2d, painting, cartoons, sketch, blur, "
-    "blurry, grainy, low resolution, aliasing, dithering, distorted, jpeg artifacts, "
-    "compression artifacts, overexposed, high contrast, bad anatomy, watermark, text, error"
-))
+neg= """simplified, abstract, unrealistic, impressionistic, low resolution, out of frame, lowres, text, error, cropped, 
+worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, out of frame, extra fingers, mutated hands, 
+poorly drawn hands, poorly drawn face, mutation, deformed, blurry, bad anatomy, bad proportions, extra limbs, cloned face, disfigured, 
+gross proportions, malformed limbs, missing arms, missing legs, extra arms, extra legs, fused fingers, too many fingers, long neck, username, 
+watermark, signature., completely nude, breasts, pussy, low quality, 3d, octane render, cgi, breast nude, breast showing
+"""
+negative.insert("1.0", neg)
 tk.Label(frame_prompt, text="Prompt Negativo").grid(row=0, column=1, sticky='w')
 
 def f_preset_inpaint(event=None):
@@ -2888,16 +2890,10 @@ def F_flux_adapter():
 
    
 
-
-
-
-
-            
-    
-
-
 tk.Button(frame_riga2,text= "Flux_IP_adapter",width=20, bg='#e8ff6a', fg='black',
           activebackground='#87CEFA', command=F_flux_adapter).pack(side='left', padx=2, pady=4)
+
+
         
 numero_di_riperizioni = ttk.Combobox(frame_riga2, values=list(range(1, 21)))
 numero_di_riperizioni.pack(side='left', padx=2, pady=4)
@@ -2953,6 +2949,211 @@ def interpolazione():
 button_interpola = tk.Button(frame_intervallo_interpola, text="interola frame", width=25,
                             command=interpolazione, relief='raised', bg='green', fg='black')
 button_interpola.pack(side='left', padx=6)
+
+from diffusers import StableDiffusionXLControlNetPipeline, ControlNetModel, AutoencoderKL,StableDiffusionXLPipeline
+from diffusers import AutoencoderKL, StableDiffusionXLControlNetPipeline, ControlNetModel, UniPCMultistepScheduler
+import torch
+from controlnet_aux import OpenposeDetector
+
+def F_SDXL_controlNetIPadap():
+    global Modelli, framescollection, scorri_frames, prompt, negative, Cfg, Steps, risoluzione,Lora,lorascale,ip_image_path1,ip_image_path2,numero_di_riperizioni
+    dtype = torch.bfloat16
+    image = None
+    openpose_image = None
+    controlnet = None
+
+    def ridimensiona_a_1024(img_path):
+        img = Image.open(img_path).convert("RGB")
+        w, h = img.size
+        if w >= h:
+            new_h = (1024 * h) // w
+            img = img.resize((1024, new_h), Image.BICUBIC)
+        else:
+            new_w = (1024 * w) // h
+            img = img.resize((new_w, 1024), Image.BICUBIC)
+        return img
+
+    # Caricamento immagine e setup ControlNet se disponibile
+    if len(framescollection) > 0:
+        try:
+            indice = int(scorri_frames.get()) - 1
+            if 0 <= indice < len(framescollection):
+                path_immagine = framescollection[indice]
+                image = ridimensiona_a_1024(path_immagine)
+
+                print("[INFO] Caricamento OpenPose e ControlNet...")
+                openpose = OpenposeDetector.from_pretrained("lllyasviel/ControlNet")
+                openpose_image = openpose(image, hand_and_face=True)
+                controlnet = ControlNetModel.from_pretrained(
+                    "thibaud/controlnet-openpose-sdxl-1.0", torch_dtype=dtype
+                )
+            else:
+                print(f"[INFO] Indice frame fuori range ({indice + 1}). Uso pipeline senza ControlNet.")
+        except Exception as e:
+            print(f"[ATTENZIONE] Errore nel caricamento immagine/OpenPose. Uso pipeline senza ControlNet.\n{e}")
+    else:
+        print("[INFO] Nessun frame caricato. Uso pipeline senza ControlNet.")
+
+    # Costruzione del path del modello
+    modello_nome = Modelli.get().lower()
+    pathmodel = f'./modelli/{Modelli.get()}' if 'xl' in modello_nome else './modelli/noxXLV6_v60.safetensors'
+    if not pathmodel.endswith('.safetensors'):
+        pathmodel += '.safetensors'
+    print(f"[INFO] Caricamento modello da: {pathmodel}")
+
+    # Caricamento pipeline
+    if controlnet and openpose_image:
+        print("[INFO] Uso StableDiffusionXLControlNetPipeline")
+        pipe = StableDiffusionXLControlNetPipeline.from_single_file(
+            pathmodel,
+            controlnet=controlnet,
+            torch_dtype=dtype
+        )
+    else:
+        print("[INFO] Uso StableDiffusionXLPipeline (senza ControlNet)")
+        pipe = StableDiffusionXLPipeline.from_single_file(
+            pathmodel,
+            torch_dtype=dtype
+        )
+
+    pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
+
+    lora_name = Lora.get()
+    lora_path = os.path.join("./Lora", lora_name)
+    if not lora_path.endswith('.safetensors'):
+        lora_path += '.safetensors'
+
+    adapter_name = os.path.splitext(os.path.basename(lora_path))[0]  # es: 'SDXL_heimuer_baoyu'
+
+    if 'sdxl' in adapter_name.lower():
+        print(f"[INFO] Caricamento LoRA: {adapter_name} (scale={lorascale.get()})")
+        pipe.load_lora_weights(lora_path, adapter_name=adapter_name)
+        pipe.fuse_lora(adapter_names=[adapter_name], lora_scale=float(lorascale.get()))
+
+    # IP_adapter    
+    ip_adapter_image = None
+
+    if ip_image_path1 is not None and os.path.exists(ip_image_path1) and \
+    ip_image_path2 is not None and os.path.exists(ip_image_path2):
+
+        img1 = ridimensiona_a_1024(ip_image_path1)
+        img2 = ridimensiona_a_1024(ip_image_path2)
+
+        if img1 is None or img2 is None:
+            raise RuntimeError("Errore nel ridimensionamento di una delle due immagini IP-Adapter.")
+
+        w1, h1 = img1.size
+        w2, h2 = img2.size
+
+        new_width = int(w1 + w2 + 2)
+        new_height = max(h1, h2) + 1
+        new_img = Image.new("RGB", (new_width, new_height), color="white")
+
+        new_img.paste(img1, (1, 1))
+        new_img.paste(img2, (w1 + 1, 1))
+
+        combined_path = "./riferimanto_imagini.jpg"
+        new_img.save(combined_path)
+
+        time.sleep(1)
+        ip_adapter_image = ridimensiona_a_1024(combined_path)
+
+    elif ip_image_path1 is not None and os.path.exists(ip_image_path1):
+        ip_adapter_image = ridimensiona_a_1024(ip_image_path1)
+
+    elif ip_image_path2 is not None and os.path.exists(ip_image_path2):
+        ip_adapter_image = ridimensiona_a_1024(ip_image_path2)
+
+    # 🚨 Verifica che l'immagine sia valida prima di passarla alla pipeline
+    if ip_adapter_image is None:
+       print("genero immaghine senza riferimenti.")
+
+    device = "cuda"
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ckpt_dir = f'{root_dir}/weights/Kolors'
+    snapshot_download(repo_id="Kwai-Kolors/Kolors", local_dir=ckpt_dir)
+    snapshot_download(repo_id="Kwai-Kolors/Kolors-IP-Adapter-Plus", local_dir=f"{root_dir}/weights/Kolors-IP-Adapter-Plus")
+    image_encoder = CLIPVisionModelWithProjection.from_pretrained(f'{root_dir}/weights/Kolors-IP-Adapter-Plus/image_encoder',
+    ignore_mismatched_sizes=True).to(dtype=torch.float16, device=device)
+    pipe.load_ip_adapter(f'{root_dir}/weights/Kolors-IP-Adapter-Plus', subfolder="", weight_name=["ip_adapter_plus_general.bin"])
+
+    
+    pipe.enable_model_cpu_offload()
+
+    # Traduzione prompt
+    prompt_text = GoogleTranslator(source='it', target='en').translate(prompt.get('1.0', 'end')).strip()
+    negative_text = GoogleTranslator(source='it', target='en').translate(negative.get('1.0', 'end')).strip()
+
+    # Encoding completo dei prompt (inclusi pooled embeddings)
+    prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds = pipe.encode_prompt(
+        prompt=prompt_text,
+        negative_prompt=negative_text,
+        device=pipe.device,
+        do_classifier_free_guidance=True
+    )
+
+    # Calcolo risoluzione finale
+    try:
+        max_res = max(map(int, risoluzione.get().split(',')))
+    except:
+        print("[ERRORE] Formato risoluzione non valido. Usa es: 1024,1024")
+        return
+
+    if image:
+        iw, ih = image.size
+        if iw >= ih:
+            width = max_res
+            height = int((ih / iw) * max_res)
+        else:
+            height = max_res
+            width = int((iw / ih) * max_res)
+        print(f"[INFO] Risoluzione adattata: {width}x{height}")
+    else:
+        width = int(risoluzione.get().split(',')[0])
+        height = int(risoluzione.get().split(',')[1])
+        print(f"[INFO] Uso risoluzione fissa: {width}x{height}")
+    for n in range(0,int(numero_di_riperizioni.get())):
+        # Generazione immagine
+        print(f"[INFO] Generazione immagine...")
+        generator = torch.manual_seed(random.randint(1, 1000000))
+        if controlnet and openpose_image:
+            result = pipe(
+                prompt_embeds=prompt_embeds,
+                negative_prompt_embeds=negative_prompt_embeds,
+                pooled_prompt_embeds=pooled_prompt_embeds,
+                ip_adapter_image=[ip_adapter_image],
+                negative_pooled_prompt_embeds=negative_pooled_prompt_embeds,
+                num_inference_steps=int(Steps.get()),
+                guidance_scale=float(Cfg.get()),
+                image=openpose_image,
+                generator=generator,
+                width=width,
+                height=height
+            ).images[0]
+            result.save(f"./output_image/sd_XL_controlnet{int(n)+1}.png")
+            print(f"✅ Immagine generata e salvata in ./output_image/sd_XL_controlnet{int(n)+1}.png")
+        else:
+            result = pipe(
+                prompt_embeds=prompt_embeds,
+                negative_prompt_embeds=negative_prompt_embeds,
+                pooled_prompt_embeds=pooled_prompt_embeds,
+                negative_pooled_prompt_embeds=negative_pooled_prompt_embeds,
+                ip_adapter_image=[ip_adapter_image],
+                num_inference_steps=int(Steps.get()),
+                guidance_scale=float(Cfg.get()),
+                generator=generator,
+                width=width,
+                height=height
+            ).images[0]
+            result.save(f"./output_image/sd_XL{int(n)+1}.png")
+            print(f"✅ Immagine generata e salvata in ./output_image/sd_XL{int(n)+1}.png")
+
+
+SDXL_controlNetIPadap = tk.Button(frame_intervallo_interpola,text="SDXL ControlNet IP_adap",width=25,command=F_SDXL_controlNetIPadap,relief='raised',bg='#ffb03a', # arancione chiaro/luminoso
+    fg='black'
+)
+SDXL_controlNetIPadap.pack(side='left', padx=6)
+
 
 frame_apri_file = tk.Frame(frame_strumenti)
 frame_apri_file.pack(pady=5, fill='x')
