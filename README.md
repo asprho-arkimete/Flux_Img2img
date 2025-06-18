@@ -1,4 +1,5 @@
-🚀 Flux_Img2img: {from v3d (video 3D) → to vReal (video Reale)}
+🚀 Flux_Img2img: {FROM V3D (video 3D) → to VREAL (video Reale)}
+
 Generazione e modifica di immagini con FLUX, IP-Adapter e Stable Diffusion (SD 1.5, SDXL e FLUX), incluso video da frame interpolati
 
 🎨 Divertiti con Img2Img, FLUX e IP-Adapter per creare immagini straordinarie!
